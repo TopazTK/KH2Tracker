@@ -6,6 +6,7 @@ using System.Windows.Media.Imaging;
 using System.Linq;
 using System.Windows.Data;
 using System.IO;
+using System.Windows.Threading;
 
 namespace KhTracker
 {
@@ -833,7 +834,7 @@ namespace KhTracker
                 SeedHashVisible = false;
             }
 
-            //SeedHashVisibility(toggle);
+            SetDetectionText();
         }
 
         private void WorldProgressToggle(object sender, RoutedEventArgs e)
@@ -1672,5 +1673,186 @@ namespace KhTracker
             }
         }
 
+        //Extra Controls toggles
+        private void AutoDetectToggle(object sender, RoutedEventArgs e)
+        {
+            Properties.Settings.Default.AutoDetect = AutoDetectOption.IsChecked;
+            if (AutoDetectOption.IsChecked)
+            {
+                Console.WriteLine("Auto Detect enabled?");
+                SetAutoDetectTimer();
+            }
+        }
+
+        //level check toggles
+        private void NextLevelCheck1Option(object sender, RoutedEventArgs e)
+        {
+            NextLevelCheck1Option();
+        }
+
+        private void NextLevelCheck1Option()
+        {
+            // mimic radio button
+            if (NextLevelCheckOption1.IsChecked == false)
+            {
+                NextLevelCheckOption1.IsChecked = true;
+                return;
+            }
+
+            NextLevelCheckOption50.IsChecked = false;
+            NextLevelCheckOption99.IsChecked = false;
+
+            Properties.Settings.Default.NextLevelCheck1 = NextLevelCheckOption1.IsChecked;
+            Properties.Settings.Default.NextLevelCheck50 = NextLevelCheckOption50.IsChecked;
+            Properties.Settings.Default.NextLevelCheck99 = NextLevelCheckOption99.IsChecked;
+
+            if (LevelCheckIcon.Visibility == Visibility.Visible && memory != null)
+            {
+                LevelCheckIcon.Visibility = Visibility.Hidden;
+                LevelCheck.Visibility = Visibility.Hidden;
+            }
+
+            HintTextParent.Margin = new Thickness(10, 0, 10, 0);
+        }
+
+        private void NextLevelCheck50Option(object sender, RoutedEventArgs e)
+        {
+            //mimic radio button
+            if (NextLevelCheckOption50.IsChecked == false)
+            {
+                NextLevelCheckOption50.IsChecked = true;
+                return;
+            }
+
+            NextLevelCheckOption1.IsChecked = false;
+            NextLevelCheckOption99.IsChecked = false;
+
+            Properties.Settings.Default.NextLevelCheck1 = NextLevelCheckOption1.IsChecked;
+            Properties.Settings.Default.NextLevelCheck50 = NextLevelCheckOption50.IsChecked;
+            Properties.Settings.Default.NextLevelCheck99 = NextLevelCheckOption99.IsChecked;
+
+            if (LevelCheckIcon.Visibility == Visibility.Hidden && memory != null)
+            {
+                LevelCheckIcon.Visibility = Visibility.Visible;
+                LevelCheck.Visibility = Visibility.Visible;
+            }
+
+            if (memory != null && stats != null)
+            {
+                try
+                {
+                    stats.SetMaxLevelCheck(50);
+                    stats.SetNextLevelCheck(stats.Level);
+                }
+                catch
+                {
+                    Console.WriteLine("Tried to edit while loading");
+                }
+            }
+
+            HintTextParent.Margin = new Thickness(33, 0, 10, 0);
+        }
+
+        private void NextLevelCheck99Option(object sender, RoutedEventArgs e)
+        {
+            //mimic radio button
+            if (NextLevelCheckOption99.IsChecked == false)
+            {
+                NextLevelCheckOption99.IsChecked = true;
+                return;
+            }
+
+            NextLevelCheckOption1.IsChecked = false;
+            NextLevelCheckOption50.IsChecked = false;
+
+            Properties.Settings.Default.NextLevelCheck1 = NextLevelCheckOption1.IsChecked;
+            Properties.Settings.Default.NextLevelCheck50 = NextLevelCheckOption50.IsChecked;
+            Properties.Settings.Default.NextLevelCheck99 = NextLevelCheckOption99.IsChecked;
+
+            if (LevelCheckIcon.Visibility == Visibility.Hidden && memory != null)
+            {
+                LevelCheckIcon.Visibility = Visibility.Visible;
+                LevelCheck.Visibility = Visibility.Visible;
+            }
+
+            if (memory != null && stats != null)
+            {
+                try
+                {
+                    stats.SetMaxLevelCheck(99);
+                    stats.SetNextLevelCheck(stats.Level);
+                }
+                catch
+                {
+                    Console.WriteLine("Tried to edit while loading");
+                }
+            }
+
+            HintTextParent.Margin = new Thickness(33, 0, 10, 0);
+        }
+
+        private void TimedHintsToggle(object sender, RoutedEventArgs e)
+        {
+            TimedHintsToggle(TimedHintsOption.IsChecked);
+        }
+
+        private void TimedHintsToggle(bool toggle)
+        {
+            if (aTimer == null && isWorking)
+            {
+                Console.WriteLine("Tried to uncheck, ignoring");
+                TimedHintsOption.IsChecked = Properties.Settings.Default.TimedHints;
+                return;
+            }
+            else if (aTimer == null && !isWorking);
+            else if (aTimer.IsEnabled && isWorking)
+            {
+                Console.WriteLine("Tried to uncheck, ignoring");
+                TimedHintsOption.IsChecked = Properties.Settings.Default.TimedHints;
+                return;
+            }
+
+            Properties.Settings.Default.TimedHints = toggle;
+            TimedHintsOption.IsChecked = toggle;
+            data.timedHintsEnabled = toggle;
+
+            if (TimedHintsOption.IsChecked)
+            {
+                //Console.WriteLine("Timed Hints Enabled");
+                GoATime.Visibility = Visibility.Visible;
+                if (data.mode == Mode.OpenKHHints || data.mode == Mode.Hints)
+                    timedHintsText.Start();
+            }
+            else
+            {
+                //Console.WriteLine("Timed Hints Disabled");
+                GoATime.Visibility = Visibility.Hidden;
+                if (timedHintsText != null)
+                    if (timedHintsText.IsEnabled)
+                        timedHintsText.Stop();
+            }
+
+            if (data.mode == Mode.OpenKHHints || data.mode == Mode.Hints)
+                ModeDisplay.Header = TimedHintsOption.IsChecked ? "Timed Mode" : "Hints Mode";
+        }
+
+        private void AlternateTimeText()
+        {
+            if (timedHintsText != null)
+                timedHintsText.Stop();
+
+            timedHintsText = new DispatcherTimer();
+            timedHintsText.Tick += SwapText;
+            timedHintsText.Interval = new TimeSpan(0, 0, 0, 0, 5000);
+            timedHintsText.Start();
+        }
+
+        private void SwapText(object sender, EventArgs e)
+        {
+            if (ModeDisplay.Header.ToString() == "Timed Mode")
+                ModeDisplay.Header = "Time Hash - " + data.lastStoredSeedHashTemp;
+            else
+                ModeDisplay.Header = "Timed Mode";
+        }
     }
 }
